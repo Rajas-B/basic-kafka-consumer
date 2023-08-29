@@ -1,0 +1,1 @@
+## This is a basic java program for consuming from a Kafka topic with PLAINTEXT security protocol
