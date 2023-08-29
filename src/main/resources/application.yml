@@ -1,0 +1,2 @@
+bootstrap:
+  server: "nj-testl01.gain.tcprod.local:29092"
