@@ -3,6 +3,7 @@ package com.kafka.consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
@@ -26,25 +27,56 @@ public class Consumer {
         properties.setProperty("key.deserializer", StringDeserializer.class.getName());
         properties.setProperty("value.deserializer", StringDeserializer.class.getName());
 
-        properties.setProperty("group.id", "test11");
+        properties.setProperty("group.id", "");
         properties.setProperty("auto.offset.reset", "latest");
 
         KafkaConsumer<String, String> consumer = new KafkaConsumer<>(properties);
 
-        consumer.subscribe(Arrays.asList("Atest"));
+        // get a reference to the main thread
 
-        while(true) {
-//            System.out.println("Polling");
-            log.info("Polling");
+        final Thread mainThread = Thread.currentThread();
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            public void run() {
+                log.info("Detected a shutdown. Exit by calling consumer.wakeup()");
+                consumer.wakeup();
 
-            ConsumerRecords<String, String> records =
-                consumer.poll(Duration.ofMillis(1000));
+                // Join the main thread to allow execution code in main thread
 
-            for(ConsumerRecord<String, String> record: records) {
-                log.info("Key: " + record.key() + ", Value: " + record.value());
-                log.info("Partition: ", record.partition()+ ", Offset: " + record.offset());
+                try{
+                    mainThread.join();
+                }
+                catch(InterruptedException e) {
+                    e.printStackTrace();
+                }
             }
+        });
 
+        try{
+            consumer.subscribe(Arrays.asList("Atest"));
+
+            while(true) {
+//            System.out.println("Polling");
+                log.info("Polling");
+
+                ConsumerRecords<String, String> records =
+                        consumer.poll(Duration.ofMillis(1000));
+
+                for(ConsumerRecord<String, String> record: records) {
+                    log.info("Key: " + record.key() + ", Value: " + record.value());
+                    log.info("Partition: ", record.partition()+ ", Offset: " + record.offset());
+                }
+
+            }
+        }
+        catch(WakeupException e){
+            log.info("Consumer is shutting down");
+        }
+        catch(Exception e){
+            log.error("Unexpected exception in the consumer", e);
+        }
+        finally{
+            consumer.close();
+            log.info("The consumer has now gracefully shutdown");
         }
     }
 }
